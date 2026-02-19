@@ -2,6 +2,7 @@ import { differenceInDays } from 'date-fns'
 
 export const PH_HOLIDAYS_2026 = [
   { date: '2026-01-01', name: "New Year's Day" },
+  { date: '2026-02-17', name: "Chinese New Year" },
   { date: '2026-02-25', name: 'EDSA Revolution Day' },
   { date: '2026-04-09', name: 'Araw ng Kagitingan' },
   { date: '2026-04-02', name: 'Maundy Thursday' },
