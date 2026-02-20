@@ -208,6 +208,8 @@ export default function InternshipTracker({ config, onConfigChange, onResetAll }
                 isGoalExceeded={isGoalExceeded}
                 projectedEndDate={projectedEndDate}
                 entries={entries}
+                startDate={config.startDate}
+                hoursPerDay={config.hoursPerDay}
               />
             </div>
           </div>

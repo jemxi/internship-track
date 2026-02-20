@@ -1,203 +1,122 @@
 import { useState, useEffect, useRef } from 'react'
-import {
-  startOfMonth, endOfMonth, eachDayOfInterval, format,
-  isSameDay, startOfWeek, endOfWeek, isToday,
-  isWithinInterval
-} from 'date-fns'
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay, startOfWeek, endOfWeek, isToday, isWithinInterval } from 'date-fns'
 import { getCumulativeHoursAt } from '../utils/helpers'
 
-const parseLocalDate = (dateStr) => {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d)
+const parseLocalDate = (s) => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d) }
+const toStr = (d) => format(d,'yyyy-MM-dd')
+
+const CELL = {
+  projected: { bg:'#f0edff', border:'#c4b5fd', text:'#5b21b6', sub:'#7c6af7' },
+  logged:    { bg:'#eff6ff', border:'#93c5fd', text:'#1d4ed8', sub:'#3b82f6' },
+  absence:   { bg:'#fff1f2', border:'#fca5a5', text:'#be123c', sub:'#ef4444' },
+  holiday:   { bg:'#fefce8', border:'#fde047', text:'#854d0e', sub:'#d97706' },
 }
 
-const toDateStr = (date) => format(date, 'yyyy-MM-dd')
-
 export default function Calendar({
-  currentDate,
-  entries,
-  selectedDate,
-  onDateSelect,
-  onMonthChange,
-  startDate,
-  projectedEndDate,
-  holidays = [],
-  hoursPerDay = 8,
-  workdays = [1, 2, 3, 4, 5],
-  targetHours = 486,
+  currentDate, entries, selectedDate, onDateSelect, onMonthChange,
+  startDate, projectedEndDate, holidays=[], hoursPerDay=8, workdays=[1,2,3,4,5], targetHours=486,
 }) {
-  const [popover, setPopover] = useState(null)
-  const calendarRef           = useRef(null)
-  const popoverRef            = useRef(null)
+  const [pop, setPop] = useState(null)
+  const calRef = useRef(null)
+  const popRef = useRef(null)
 
-  const monthStart    = startOfMonth(currentDate)
-  const monthEnd      = endOfMonth(monthStart)
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 })
-  const calendarEnd   = endOfWeek(monthEnd, { weekStartsOn: 0 })
-  const days          = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
-  const weeks         = []
-  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7))
+  const monthStart = startOfMonth(currentDate)
+  const days       = eachDayOfInterval({ start:startOfWeek(monthStart,{weekStartsOn:0}), end:endOfWeek(endOfMonth(monthStart),{weekStartsOn:0}) })
+  const weeks      = []
+  for (let i=0;i<days.length;i+=7) weeks.push(days.slice(i,i+7))
 
-  const startDateObj    = startDate       ? parseLocalDate(startDate)       : null
-  const projectedEndObj = projectedEndDate ? parseLocalDate(projectedEndDate) : null
+  const startObj = startDate        ? parseLocalDate(startDate)        : null
+  const endObj   = projectedEndDate ? parseLocalDate(projectedEndDate) : null
 
-  const getDateStatus = (date) => {
-    const entry = entries[toDateStr(date)]
-    if (!entry) return null
-    if (entry.isAbsence) return 'absence'
-    if (entry.hours > 0) return 'logged'
-    return null
-  }
+  const getStatus  = (d) => { const e=entries[toStr(d)]; if(!e)return null; if(e.isAbsence)return'absence'; if(e.hours>0)return'logged'; return null }
+  const isInRange  = (d) => { if(!startObj||!endObj)return false; if(!workdays.includes(d.getDay()))return false; if(holidays.includes(toStr(d)))return false; return isWithinInterval(d,{start:startObj,end:endObj}) }
 
-  const isInProjectedRange = (date) => {
-    if (!startDateObj || !projectedEndObj) return false
-    const dateStr   = toDateStr(date)
-    const dayOfWeek = date.getDay()
-    if (!workdays.includes(dayOfWeek)) return false
-    if (holidays.includes(dateStr)) return false
-    return isWithinInterval(date, { start: startDateObj, end: projectedEndObj })
-  }
+  useEffect(()=>{
+    const fn=(e)=>{ if(popRef.current&&!popRef.current.contains(e.target)&&calRef.current&&!calRef.current.contains(e.target))setPop(null) }
+    document.addEventListener('mousedown',fn); return()=>document.removeEventListener('mousedown',fn)
+  },[])
 
-  const isHolidayDate = (date) => holidays.includes(toDateStr(date))
-  const isStartDate   = (date) => startDateObj ? isSameDay(date, startDateObj) : false
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (
-        popoverRef.current  && !popoverRef.current.contains(e.target) &&
-        calendarRef.current && !calendarRef.current.contains(e.target)
-      ) setPopover(null)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const handleDayClick = (day, e) => {
+  const handleClick = (day,e) => {
     onDateSelect(day)
-    const rect    = e.currentTarget.getBoundingClientRect()
-    const calRect = calendarRef.current?.getBoundingClientRect()
-    setPopover({
-      dateStr: toDateStr(day),
-      top:  rect.top  - (calRect?.top  || 0),
-      left: rect.left - (calRect?.left || 0),
-      dayW: rect.width,
-      dayH: rect.height,
-    })
+    const r=e.currentTarget.getBoundingClientRect(); const c=calRef.current?.getBoundingClientRect()
+    setPop({dateStr:toStr(day),top:r.top-(c?.top||0),left:r.left-(c?.left||0),dayW:r.width,dayH:r.height})
   }
 
-  const buildPopover = () => {
-    if (!popover) return null
-    const { dateStr } = popover
-
-    const todayStr  = toDateStr(new Date())
-    const entry     = entries[dateStr]
-    const isHoliday = holidays.includes(dateStr)
-    const isTodays  = dateStr === todayStr
-    const isFuture  = dateStr > todayStr
-    const isAbsent  = entry?.isAbsence === true
-
-    // ✅ Use the same getCumulativeHoursAt from helpers — synced with ProgressCard
-    const cumulative = getCumulativeHoursAt({
-      entries,
-      startDate,
-      targetDateStr: dateStr,
-      hoursPerDay,
-      workdays,
-      holidays,
-    })
-
-    const remaining = Math.max(0, Number(targetHours) - cumulative)
-    const pct       = Number(targetHours) > 0
-      ? Math.min(Math.round((cumulative / Number(targetHours)) * 100), 100)
-      : 0
-
-    // Hours for this specific day
-    const dayOfWeek    = parseLocalDate(dateStr).getDay()
-    const isWorkday    = workdays.includes(dayOfWeek)
-    const hoursThisDay = isAbsent || isHoliday || !isWorkday
-      ? 0
-      : entry?.hours > 0
-        ? Number(entry.hours)
-        : Number(hoursPerDay)
-
-    return {
-      dayLabel: format(parseLocalDate(dateStr), 'EEE, MMM d'),
-      entry, isHoliday, cumulative, isTodays, isFuture, remaining, pct, isAbsent, hoursThisDay,
-    }
+  const buildPop = () => {
+    if(!pop) return null
+    const {dateStr}=pop
+    const todayStr=toStr(new Date()), entry=entries[dateStr], isHol=holidays.includes(dateStr)
+    const isTodays=dateStr===todayStr, isFuture=dateStr>todayStr, isAbsent=entry?.isAbsence===true
+    const cumulative=getCumulativeHoursAt({entries,startDate,targetDateStr:dateStr,hoursPerDay,workdays,holidays})
+    const remaining=Math.max(0,Number(targetHours)-cumulative)
+    const pct=Number(targetHours)>0?Math.min(Math.round((cumulative/Number(targetHours))*100),100):0
+    const dow=parseLocalDate(dateStr).getDay()
+    const hoursDay=isAbsent||isHol||!workdays.includes(dow)?0:entry?.hours>0?Number(entry.hours):Number(hoursPerDay)
+    return {dayLabel:format(parseLocalDate(dateStr),'EEEE, MMMM d'),entry,isHol,cumulative,isTodays,isFuture,remaining,pct,isAbsent,hoursDay}
   }
 
-  const pc = buildPopover()
+  const pc = buildPop()
 
   return (
-    <div ref={calendarRef} className="bg-white rounded-lg p-6 shadow-sm relative">
+    <div ref={calRef} style={{ background:'#fff', borderRadius:16, border:'1px solid #eaecf4', boxShadow:'0 1px 6px rgba(80,80,140,.08)', padding:'22px 22px 18px', position:'relative', fontFamily:"'Inter',-apple-system,sans-serif" }}>
+      <style>{`
+        .ccell{transition:transform .1s,box-shadow .12s;outline:none}
+        .ccell:hover{transform:scale(1.08);z-index:5;box-shadow:0 4px 14px rgba(109,81,247,.2)}
+        .cnav:hover{background:#f0edff!important;color:#6d51f7!important;border-color:#c4b5fd!important}
+      `}</style>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">{format(currentDate, 'MMMM yyyy')}</h2>
-        <div className="flex gap-2">
-          <button onClick={() => { onMonthChange(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1)); setPopover(null) }} className="px-3 py-1 hover:bg-gray-100 rounded">❮</button>
-          <button onClick={() => { onMonthChange(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1)); setPopover(null) }} className="px-3 py-1 hover:bg-gray-100 rounded">❯</button>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18 }}>
+        <div style={{ fontSize:20, fontWeight:800, color:'#1a1a2e', letterSpacing:'-0.02em' }}>{format(currentDate,'MMMM yyyy')}</div>
+        <div style={{ display:'flex', gap:6 }}>
+          {[
+            {label:'‹', onClick:()=>{onMonthChange(new Date(currentDate.getFullYear(),currentDate.getMonth()-1));setPop(null)}, w:32},
+            {label:'TODAY', onClick:()=>{onMonthChange(new Date());setPop(null)}, w:null, px:12},
+            {label:'›', onClick:()=>{onMonthChange(new Date(currentDate.getFullYear(),currentDate.getMonth()+1));setPop(null)}, w:32},
+          ].map((b,i)=>(
+            <button key={i} className="cnav" onClick={b.onClick} style={{ height:32, width:b.w||'auto', padding:b.px?`0 ${b.px}px`:0, borderRadius:9, border:'1px solid #e2e4ee', background:'#f7f8fc', cursor:'pointer', color:'#6b7280', fontSize:b.label==='TODAY'?11:15, fontWeight:b.label==='TODAY'?800:400, letterSpacing:b.label==='TODAY'?'0.04em':0, transition:'all .15s', display:'flex', alignItems:'center', justifyContent:'center' }}>{b.label}</button>
+          ))}
         </div>
       </div>
 
-      {/* Day headers */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {['S','M','T','W','T','F','S'].map((d, i) => (
-          <div key={i} className="text-center text-sm font-semibold text-gray-500">{d}</div>
+      {/* Day labels */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4, marginBottom:6 }}>
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>(
+          <div key={d} style={{ textAlign:'center', fontSize:10, fontWeight:700, color:'#c4c8d8', letterSpacing:'0.06em', padding:'3px 0' }}>{d}</div>
         ))}
       </div>
 
-      {/* Weeks */}
-      <div className="space-y-1">
-        {weeks.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 gap-1">
-            {week.map((day, di) => {
-              const status         = getDateStatus(day)
-              const isCurrentMonth = day.getMonth() === currentDate.getMonth()
-              const isSelected     = isSameDay(day, selectedDate)
-              const isTodayDate    = isToday(day)
-              const inProjected    = isInProjectedRange(day)
-              const isHoliday      = isHolidayDate(day)
-              const dateStr        = toDateStr(day)
-              const entry          = entries[dateStr]
-              const hasLoggedHours = entry?.hours > 0
-              const isLogged       = status === 'logged'
-              const isAbsence      = status === 'absence'
-              const isStart        = isStartDate(day)
-              const isPopped       = popover?.dateStr === dateStr && isCurrentMonth
+      {/* Grid */}
+      <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+        {weeks.map((week,wi)=>(
+          <div key={wi} style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
+            {week.map((day,di)=>{
+              const isCur=day.getMonth()===currentDate.getMonth()
+              const status=getStatus(day), inRange=isInRange(day), isHol=holidays.includes(toStr(day))
+              const isTod=isToday(day), isSel=isSameDay(day,selectedDate)
+              const isPop=pop?.dateStr===toStr(day)&&isCur
+              const entry=entries[toStr(day)], hasHrs=entry?.hours>0
+
+              let bg='#f7f8fc', border='1.5px solid #f0f0f8', color='#374151'
+              if(!isCur){bg='transparent';border='1.5px solid transparent';color='#d1d5db'}
+              else if(status==='absence'){bg=CELL.absence.bg;border=`1.5px solid ${CELL.absence.border}`;color=CELL.absence.text}
+              else if(status==='logged'){bg=CELL.logged.bg;border=`1.5px solid ${CELL.logged.border}`;color=CELL.logged.text}
+              else if(isHol){bg=CELL.holiday.bg;border=`1.5px solid ${CELL.holiday.border}`;color=CELL.holiday.text}
+              else if(inRange){bg=CELL.projected.bg;border=`1.5px solid ${CELL.projected.border}`;color=CELL.projected.text}
+
+              let outline='none'
+              if(isTod&&isCur) outline='2.5px solid #6d51f7'
+              else if(isSel&&isCur) outline='2.5px solid #c4b5fd'
 
               return (
-                <button
-                  key={di}
-                  onClick={(e) => isCurrentMonth && handleDayClick(day, e)}
-                  className={`
-                    aspect-square rounded-lg font-semibold text-sm transition relative
-                    ${!isCurrentMonth ? 'text-gray-300 pointer-events-none' : ''}
-                    ${isCurrentMonth && !status && !inProjected ? 'hover:bg-gray-100 text-gray-700' : ''}
-                    ${isCurrentMonth && inProjected && !hasLoggedHours && !isLogged ? 'bg-purple-100 text-purple-700 border border-purple-300' : ''}
-                    ${isCurrentMonth && isLogged ? 'bg-blue-100 text-blue-700 border-2 border-blue-400' : ''}
-                    ${isCurrentMonth && isAbsence ? 'bg-red-100 text-red-700 border-2 border-red-400' : ''}
-                    ${isStart && isCurrentMonth ? 'ring-2 ring-green-500 ring-offset-1' : ''}
-                    ${isSelected && isCurrentMonth ? 'border-2 border-purple-500' : ''}
-                    ${isTodayDate && isCurrentMonth ? 'ring-2 ring-purple-300' : ''}
-                    ${isPopped ? 'scale-110 z-10 shadow-md ring-2 ring-purple-400 ring-offset-1' : ''}
-                  `}
-                >
-                  <div className="w-full h-full flex flex-col items-center justify-center">
-                    <span>{format(day, 'd')}</span>
-                    {isCurrentMonth && hasLoggedHours && (
-                      <span className="text-xs font-semibold">{entry.hours}h</span>
-                    )}
-                    {isCurrentMonth && inProjected && !hasLoggedHours && !isLogged && status !== 'absence' && (
-                      <span className="text-xs text-purple-600">{hoursPerDay}h</span>
-                    )}
-                    {isCurrentMonth && isAbsence && (
-                      <span className="text-xs font-bold text-red-600">A</span>
-                    )}
-                    {isHoliday && (
-                      <span className="absolute top-1 right-1 text-yellow-500 text-xs">★</span>
-                    )}
-                  </div>
+                <button key={di} className={isCur?'ccell':''} onClick={e=>isCur&&handleClick(day,e)}
+                  style={{ borderRadius:10, border, background:bg, color, cursor:isCur?'pointer':'default', aspectRatio:'1', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', position:'relative', fontSize:13, fontWeight:600, padding:0, outline, opacity:isCur?1:0.3, ...(isPop?{transform:'scale(1.1)',zIndex:10,boxShadow:'0 6px 20px rgba(109,81,247,.28)',outline:`2.5px solid #6d51f7`}:{}) }}>
+                  <span style={{lineHeight:1}}>{format(day,'d')}</span>
+                  {isCur&&hasHrs&&<span style={{fontSize:9,fontWeight:700,color:CELL.logged.sub,marginTop:2}}>{entry.hours}h</span>}
+                  {isCur&&inRange&&!hasHrs&&status!=='absence'&&!isHol&&<span style={{fontSize:9,fontWeight:600,color:CELL.projected.sub,marginTop:2}}>{hoursPerDay}h</span>}
+                  {isCur&&status==='absence'&&<span style={{fontSize:9,fontWeight:800,color:CELL.absence.sub,marginTop:2}}>ABS</span>}
+                  {isHol&&isCur&&<span style={{position:'absolute',top:2,right:3,fontSize:7}}>⭐</span>}
+                  {isTod&&isCur&&<span style={{position:'absolute',bottom:2,left:'50%',transform:'translateX(-50%)',width:3,height:3,borderRadius:'50%',background:'#6d51f7'}}/>}
                 </button>
               )
             })}
@@ -205,136 +124,68 @@ export default function Calendar({
         ))}
       </div>
 
-      {/* ── Popover ── */}
-      {popover && pc && (() => {
-        const calW        = calendarRef.current?.offsetWidth || 500
-        const popW        = 272
-        const rawLeft     = popover.left - (popW / 2) + (popover.dayW / 2)
-        const clampedLeft = Math.min(Math.max(rawLeft, 8), calW - popW - 8)
-        const arrowLeft   = popover.left + popover.dayW / 2 - clampedLeft - 6
+      {/* Legend */}
+      <div style={{ display:'flex', gap:14, marginTop:16, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+          <div style={{ width:13, height:13, borderRadius:4, border:'2.5px solid #6d51f7' }} />
+          <span style={{ fontSize:10, color:'#b0b4cc', fontWeight:600 }}>Today</span>
+        </div>
+        {Object.entries({Scheduled:CELL.projected,Logged:CELL.logged,Holiday:CELL.holiday,Absent:CELL.absence}).map(([label,c])=>(
+          <div key={label} style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <div style={{ width:13, height:13, borderRadius:4, background:c.bg, border:`1.5px solid ${c.border}` }} />
+            <span style={{ fontSize:10, color:'#b0b4cc', fontWeight:600 }}>{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Popover */}
+      {pop && pc && (()=>{
+        const calW=calRef.current?.offsetWidth||500, popW=284
+        const cL=Math.min(Math.max(pop.left-(popW/2)+(pop.dayW/2),8),calW-popW-8)
+        const arrL=Math.min(Math.max(pop.left+pop.dayW/2-cL-6,10),popW-20)
+        const accent=pc.isFuture?'#4f46e5':pc.isAbsent?'#e11d48':'#6d51f7'
+        const barBg=pc.isFuture?'linear-gradient(90deg,#6366f1,#818cf8)':pc.cumulative>=Number(targetHours)?'linear-gradient(90deg,#34d399,#22d3ee)':'linear-gradient(90deg,#6d51f7,#a78bfa)'
+        const hBg=pc.isAbsent?'#fff1f2':pc.isHol?'#fefce8':pc.isFuture?'#eef2ff':'#f0edff'
+        const hBd=pc.isAbsent?'#fecdd3':pc.isHol?'#fde68a':pc.isFuture?'#c7d2fe':'#ddd6fe'
 
         return (
-          <div
-            ref={popoverRef}
-            className="absolute z-50"
-            style={{ top: popover.top + popover.dayH + 8, left: clampedLeft, width: popW }}
-          >
-            <div className="absolute -top-1.5 w-3 h-3 rotate-45 bg-white border-l border-t border-gray-200"
-              style={{ left: Math.min(Math.max(arrowLeft, 10), popW - 20) }} />
-
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
-
-              {/* Header */}
-              <div className={`px-4 py-3 border-b border-gray-100 flex items-center justify-between ${
-                pc.isAbsent  ? 'bg-red-50'    :
-                pc.isHoliday ? 'bg-yellow-50' :
-                pc.isFuture  ? 'bg-indigo-50' :
-                               'bg-blue-50'
-              }`}>
+          <div ref={popRef} style={{ position:'absolute', zIndex:50, top:pop.top+pop.dayH+10, left:cL, width:popW }}>
+            <div style={{ position:'absolute', top:-6, left:arrL, width:12, height:12, transform:'rotate(45deg)', background:hBg, borderLeft:`1px solid ${hBd}`, borderTop:`1px solid ${hBd}` }} />
+            <div style={{ background:'#fff', borderRadius:14, border:'1px solid #e5e7eb', boxShadow:'0 10px 36px rgba(30,31,46,.16)', overflow:'hidden' }}>
+              <div style={{ background:hBg, borderBottom:`1px solid ${hBd}`, padding:'11px 15px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div>
-                  <div className="font-bold text-gray-900 text-sm">{pc.dayLabel}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    {pc.isHoliday ? '⭐ Philippine Holiday' :
-                     pc.isAbsent  ? '🚫 Marked Absent'      :
-                     pc.isFuture  ? '📅 Projected'           :
-                                    '✅ Hours Counted'}
-                  </div>
+                  <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{pc.dayLabel}</div>
+                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:2 }}>{pc.isHol?'⭐ Philippine Holiday':pc.isAbsent?'🚫 Marked Absent':pc.isFuture?'📅 Projected':'✅ Hours counted'}</div>
                 </div>
-                <button onClick={() => setPopover(null)} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-black/10 text-gray-400 text-xs ml-2 shrink-0">✕</button>
+                <button onClick={()=>setPop(null)} style={{ width:22, height:22, borderRadius:'50%', background:'rgba(0,0,0,.06)', border:'none', cursor:'pointer', color:'#9ca3af', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginLeft:8 }}>✕</button>
               </div>
-
-              {/* Body */}
-              <div className="px-4 py-3 space-y-3">
-
-                {/* Hours this day */}
-                {!pc.isHoliday && !pc.isAbsent && pc.hoursThisDay > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">
-                      {pc.isFuture ? 'Projected hours this day' : 'Hours this day'}
-                    </span>
-                    <span className="font-bold text-purple-600 text-sm bg-purple-50 px-2 py-0.5 rounded-lg">
-                      {pc.hoursThisDay}h
-                      {pc.entry?.hours > 0 && !pc.isFuture && <span className="text-[10px] text-gray-400 ml-1">(manual)</span>}
+              <div style={{ padding:'13px 15px', display:'flex', flexDirection:'column', gap:10 }}>
+                {!pc.isHol&&!pc.isAbsent&&pc.hoursDay>0&&(
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span style={{ fontSize:12, color:'#6b7280' }}>{pc.isFuture?'Projected this day':'Hours this day'}</span>
+                    <span style={{ fontSize:14, fontWeight:800, color:accent, background:hBg, padding:'2px 10px', borderRadius:7 }}>
+                      {pc.hoursDay}h {pc.entry?.hours>0&&!pc.isFuture&&<span style={{fontSize:10,color:'#9ca3af',fontWeight:400}}>manual</span>}
                     </span>
                   </div>
                 )}
-
-                {/* Cumulative */}
-                {pc.cumulative > 0 && (
-                  <>
-                    <div className="border-t border-gray-100" />
-                    <p className="text-xs text-gray-600 leading-relaxed">
-                      {pc.isFuture ? (
-                        <>
-                          When you reach this date, you'll have{' '}
-                          <span className="font-bold text-indigo-600">{pc.cumulative}/{targetHours} hrs</span>.
-                          {pc.remaining > 0 ? (
-                            <>{' '}<span className="text-gray-400">({pc.remaining} hrs remaining at that point)</span></>
-                          ) : (
-                            <>{' '}<span className="font-bold text-green-500">Goal achieved by then! 🎉</span></>
-                          )}
-                        </>
-                      ) : pc.isTodays ? (
-                        <>
-                          From the start, you've reached{' '}
-                          <span className="font-bold text-purple-600">{pc.cumulative}/{targetHours} hrs</span>{' '}
-                          now.{' '}
-                          {pc.remaining > 0 ? (
-                            <><span className="font-bold text-orange-500">{pc.remaining} hrs</span> to go! 💪</>
-                          ) : (
-                            <span className="font-bold text-green-500">Goal achieved! 🎉</span>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          From the start, you reached{' '}
-                          <span className="font-bold text-purple-600">{pc.cumulative} hrs</span>{' '}
-                          by this date.
-                          {pc.remaining > 0 && (
-                            <span className="text-gray-400"> ({pc.remaining} hrs remaining at this point)</span>
-                          )}
-                        </>
-                      )}
-                    </p>
-
-                    {/* Mini progress bar */}
-                    <div>
-                      <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                        <span>{pc.cumulative}h</span>
-                        <span>{targetHours}h target</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${pc.pct}%`,
-                            background: pc.cumulative >= Number(targetHours)
-                              ? '#10b981'
-                              : pc.isFuture
-                                ? 'linear-gradient(90deg, #6366f1, #a5b4fc)'
-                                : 'linear-gradient(90deg, #7c3aed, #a78bfa)',
-                          }}
-                        />
-                      </div>
-                      <div className={`text-right text-[10px] font-bold mt-0.5 ${pc.isFuture ? 'text-indigo-500' : 'text-purple-600'}`}>
-                        {pc.pct}%
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* Edge cases */}
-                {pc.cumulative === 0 && !pc.isAbsent && !pc.isHoliday && (
-                  <p className="text-xs text-gray-400 text-center py-1">
-                    No hours counted for this date range.
+                {pc.cumulative>0&&(<>
+                  <div style={{height:1,background:'#f0f0f6'}}/>
+                  <p style={{fontSize:12,color:'#374151',lineHeight:1.65,margin:0}}>
+                    {pc.isFuture?(<>When you reach this date, you'll have <strong style={{color:'#4f46e5'}}>{pc.cumulative}/{targetHours} hrs</strong>.{' '}{pc.remaining>0?<span style={{color:'#9ca3af'}}>({pc.remaining} hrs to go)</span>:<strong style={{color:'#059669'}}>Goal achieved! 🎉</strong>}</>)
+                    :pc.isTodays?(<>From the start you've reached <strong style={{color:'#6d51f7'}}>{pc.cumulative}/{targetHours} hrs</strong>.{' '}{pc.remaining>0?<><strong style={{color:'#ea580c'}}>{pc.remaining} hrs</strong> to go! 💪</>:<strong style={{color:'#059669'}}>Goal achieved! 🎉</strong>}</>)
+                    :(<>By this date you had <strong style={{color:'#6d51f7'}}>{pc.cumulative} hrs</strong>.{pc.remaining>0&&<span style={{color:'#9ca3af'}}> ({pc.remaining} hrs remaining)</span>}</>)}
                   </p>
-                )}
-                {pc.isAbsent && (
-                  <p className="text-xs text-red-400 text-center py-1">Marked as absent — no hours counted.</p>
-                )}
-                {pc.isHoliday && (
-                  <p className="text-xs text-yellow-600 text-center py-1">Philippine holiday — not a work day.</p>
-                )}
+                  <div>
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#9ca3af',marginBottom:5}}><span>{pc.cumulative}h</span><span>{targetHours}h target</span></div>
+                    <div style={{height:5,background:'#f0f0f6',borderRadius:99,overflow:'hidden'}}>
+                      <div style={{height:'100%',borderRadius:99,width:`${pc.pct}%`,background:barBg,transition:'width .4s ease'}}/>
+                    </div>
+                    <div style={{textAlign:'right',fontSize:10,fontWeight:800,color:accent,marginTop:4}}>{pc.pct}%</div>
+                  </div>
+                </>)}
+                {pc.isAbsent&&<p style={{fontSize:12,color:'#e11d48',textAlign:'center',margin:0}}>Marked as absent — no hours counted.</p>}
+                {pc.isHol&&<p style={{fontSize:12,color:'#d97706',textAlign:'center',margin:0}}>Philippine holiday — not a work day.</p>}
+                {pc.cumulative===0&&!pc.isAbsent&&!pc.isHol&&<p style={{fontSize:12,color:'#9ca3af',textAlign:'center',margin:0}}>No hours counted for this range.</p>}
               </div>
             </div>
           </div>

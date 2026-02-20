@@ -2,6 +2,7 @@ import { differenceInDays } from 'date-fns'
 
 export const PH_HOLIDAYS_2026 = [
   { date: '2026-01-01', name: "New Year's Day" },
+  { date: '2026-02-17', name: "Chinese New Year" },
   { date: '2026-02-25', name: 'EDSA Revolution Day' },
   { date: '2026-04-09', name: 'Araw ng Kagitingan' },
   { date: '2026-04-02', name: 'Maundy Thursday' },
@@ -42,7 +43,7 @@ const countWorkdays = (start, end, workdays, holidays) => {
   let count = 0
   const cur = new Date(start)
   while (cur <= end) {
-    const dateStr   = toDateStr(cur)
+    const dateStr = toDateStr(cur)
     const dayOfWeek = cur.getDay()
     if (workdays.includes(dayOfWeek) && !holidays.includes(dateStr)) count++
     cur.setDate(cur.getDate() + 1)
@@ -60,7 +61,7 @@ export const calculateProgress = (
 ) => {
   const safeHoursPerDay = Math.max(0.5, Number(hoursPerDay) || 8)
   const safeTargetHours = Math.max(1, Number(targetHours) || 1)
-  const safeWorkdays    = Array.isArray(workdays) ? workdays.filter(d => d >= 0 && d <= 6) : [1,2,3,4,5]
+  const safeWorkdays = Array.isArray(workdays) ? workdays.filter(d => d >= 0 && d <= 6) : [1, 2, 3, 4, 5]
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -77,12 +78,12 @@ export const calculateProgress = (
   if (start <= today) {
     const cur = new Date(start)
     while (cur <= today) {
-      const dateStr   = toDateStr(cur)
+      const dateStr = toDateStr(cur)
       const dayOfWeek = cur.getDay()
       const isWorkday = safeWorkdays.includes(dayOfWeek)
       const isHoliday = holidays.includes(dateStr)
-      const entry     = entries[dateStr]
-      const isAbsent  = entry?.isAbsence === true
+      const entry = entries[dateStr]
+      const isAbsent = entry?.isAbsence === true
 
       if (isWorkday && !isHoliday) {
         daysElapsed++
@@ -100,18 +101,18 @@ export const calculateProgress = (
 
   totalHours = Math.round(totalHours * 10) / 10
 
-  const extraHours      = Math.max(0, totalHours - safeTargetHours)
-  const remainingHours  = Math.max(0, safeTargetHours - totalHours)
-  const remainingDays   = Math.ceil(remainingHours / safeHoursPerDay)
+  const extraHours = Math.max(0, totalHours - safeTargetHours)
+  const remainingHours = Math.max(0, safeTargetHours - totalHours)
+  const remainingDays = Math.ceil(remainingHours / safeHoursPerDay)
 
   // Project end date: walk forward from today
   const projectedEnd = new Date(today)
   if (remainingHours > 0 && safeWorkdays.length > 0) {
-    let added  = 0
+    let added = 0
     let safety = 3000
     while (added < remainingDays && safety-- > 0) {
       projectedEnd.setDate(projectedEnd.getDate() + 1)
-      const dateStr   = toDateStr(projectedEnd)
+      const dateStr = toDateStr(projectedEnd)
       const dayOfWeek = projectedEnd.getDay()
       if (safeWorkdays.includes(dayOfWeek) && !holidays.includes(dateStr)) added++
     }
@@ -129,7 +130,7 @@ export const calculateProgress = (
 
   return {
     totalHours,
-    extraHours:         Math.round(extraHours * 10) / 10,
+    extraHours: Math.round(extraHours * 10) / 10,
     daysLogged,
     daysElapsed,        // workdays from start to today (the "25" in "25/61")
     totalDaysRequired,  // total workdays from start to projected end (the "61")
@@ -153,9 +154,9 @@ export const getCumulativeHoursAt = ({
   if (!startDate || !targetDateStr) return 0
 
   const safeHoursPerDay = Math.max(0.5, Number(hoursPerDay) || 8)
-  const safeWorkdays    = Array.isArray(workdays) ? workdays.filter(d => d >= 0 && d <= 6) : [1,2,3,4,5]
+  const safeWorkdays = Array.isArray(workdays) ? workdays.filter(d => d >= 0 && d <= 6) : [1, 2, 3, 4, 5]
 
-  const start  = parseLocalDate(startDate)
+  const start = parseLocalDate(startDate)
   const target = parseLocalDate(targetDateStr)
 
   const today = new Date()
@@ -165,13 +166,13 @@ export const getCumulativeHoursAt = ({
   const cur = new Date(start)
 
   while (cur <= target) {
-    const dateStr   = toDateStr(cur)
+    const dateStr = toDateStr(cur)
     const dayOfWeek = cur.getDay()
     const isWorkday = safeWorkdays.includes(dayOfWeek)
     const isHoliday = holidays.includes(dateStr)
-    const entry     = entries[dateStr]
-    const isAbsent  = entry?.isAbsence === true
-    const isPast    = cur <= today
+    const entry = entries[dateStr]
+    const isAbsent = entry?.isAbsence === true
+    const isPast = cur <= today
 
     if (isWorkday && !isHoliday && !isAbsent) {
       if (isPast) {
