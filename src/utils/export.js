@@ -456,7 +456,7 @@ export function generatePDF(entries, meta = {}) {
       <div class="report-title">Internship Hours Report</div>
       <div class="report-subtitle">Generated on ${today()} &nbsp;·&nbsp; Internship Tracker 2026</div>
     </div>
-    <div class="logo-box">🎓</div>
+   
   </div>
 
   <!-- Big stat cards -->
