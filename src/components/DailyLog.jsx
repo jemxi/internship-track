@@ -74,8 +74,8 @@ export default function DailyLog({ selectedDate, entry, onSave, onAddAbsence, ho
       {!isFuture&&<div style={{ height:1, background:'#f0f0f8', margin:'0 0 14px' }}/>}
 
       {!isFuture ? (
-        <button onClick={handleAbsence} style={{ width:'100%', padding:'10px 0', borderRadius:10, fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', transition:'all .15s', background:isAbsent?'#dcfce7':' #f7f8fc', color:isAbsent?'#15803d':'#6b7280', border:`1.5px solid ${isAbsent?'#bbf7d0':'#e2e4ee'}` }}>
-          {isAbsent?'✅ Remove Absence — restore auto hours':'🚫 Mark as Absent'}
+        <button onClick={handleAbsence} style={{ width:'100%', padding:'10px 0', borderRadius:10, fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', transition:'all .15s', background:isAbsent?'#dcfce7':' #FF0000', color:isAbsent?'#15803d':'#ffff', border:`1.5px solid ${isAbsent?'#bbf7d0':'#e2e4ee'}` }}>
+          {isAbsent?' Remove Absence — restore auto hours':' Mark as Absent'}
         </button>
       ) : (
         <div style={{ textAlign:'center', padding:'12px 0', fontSize:13, color:'#b0b4cc' }}>

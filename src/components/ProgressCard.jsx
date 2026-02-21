@@ -96,7 +96,7 @@ export default function ProgressCard({
       </div>
       {absenceCount > 0 && (
         <div className="text-sm text-red-200 mb-3">
-          🚫 {absenceCount} absence{absenceCount !== 1 ? 's' : ''} not counted
+           {absenceCount} absence{absenceCount !== 1 ? 's' : ''} not counted
         </div>
       )}
 
@@ -120,13 +120,7 @@ export default function ProgressCard({
 
       {/* Export */}
       <div className="flex flex-col gap-2">
-        <button
-          onClick={handleExportCSV}
-          className="w-full bg-white font-bold py-3 rounded-lg text-sm transition hover:bg-gray-100 flex items-center justify-center gap-2"
-          style={{ color: isGoalExceeded ? '#065f46' : '#3730a3' }}
-        >
-          📊 Download CSV Report
-        </button>
+      
         <button
           onClick={handleExportPDF}
           className="w-full bg-white/20 hover:bg-white/30 text-white font-bold py-2 rounded-lg text-sm transition"

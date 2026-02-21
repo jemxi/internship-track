@@ -1,5 +1,9 @@
 import { differenceInDays } from 'date-fns'
 
+/* ─────────────────────────────────────────────
+   PH HOLIDAYS 2026
+───────────────────────────────────────────── */
+
 export const PH_HOLIDAYS_2026 = [
   { date: '2026-01-01', name: "New Year's Day" },
   { date: '2026-02-17', name: "Chinese New Year" },
@@ -21,35 +25,52 @@ export const PH_HOLIDAYS_2026 = [
 export const PH_HOLIDAY_DATES_2026 = PH_HOLIDAYS_2026.map(h => h.date)
 
 export const getHolidayName2026 = (dateStr) => {
-  const holiday = PH_HOLIDAYS_2026.find(h => h.date === dateStr)
-  return holiday ? holiday.name : null
+  const h = PH_HOLIDAYS_2026.find(x => x.date === dateStr)
+  return h ? h.name : null
 }
 
-// Parse date string without timezone offset — critical for PH timezone
-const parseLocalDate = (dateStr) => {
-  const [y, m, d] = dateStr.split('-').map(Number)
+/* ─────────────────────────────────────────────
+   DATE HELPERS (NO TIMEZONE ISSUES)
+───────────────────────────────────────────── */
+
+const parseLocalDate = (s) => {
+  const [y, m, d] = s.split('-').map(Number)
   return new Date(y, m - 1, d)
 }
 
-const toDateStr = (date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+const toDateStr = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const da = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${da}`
 }
 
-// Count workdays in a range [start, end] inclusive
+/* ─────────────────────────────────────────────
+   COUNT WORKDAYS IN RANGE
+───────────────────────────────────────────── */
+
 const countWorkdays = (start, end, workdays, holidays) => {
   let count = 0
   const cur = new Date(start)
+
   while (cur <= end) {
     const dateStr = toDateStr(cur)
-    const dayOfWeek = cur.getDay()
-    if (workdays.includes(dayOfWeek) && !holidays.includes(dateStr)) count++
+    const dow = cur.getDay()
+    const isHoliday = holidays.includes(dateStr)
+
+    if (workdays.includes(dow) && !isHoliday) {
+      count++
+    }
+
     cur.setDate(cur.getDate() + 1)
   }
+
   return count
 }
+
+/* ─────────────────────────────────────────────
+   MAIN PROGRESS CALCULATOR
+───────────────────────────────────────────── */
 
 export const calculateProgress = (
   entries,
@@ -57,44 +78,66 @@ export const calculateProgress = (
   hoursPerDay,
   startDate,
   holidays = [],
-  workdays = [1, 2, 3, 4, 5],
+  workdays = [1,2,3,4,5]
 ) => {
+
   const safeHoursPerDay = Math.max(0.5, Number(hoursPerDay) || 8)
   const safeTargetHours = Math.max(1, Number(targetHours) || 1)
-  const safeWorkdays = Array.isArray(workdays) ? workdays.filter(d => d >= 0 && d <= 6) : [1, 2, 3, 4, 5]
+  const safeWorkdays = Array.isArray(workdays)
+    ? workdays.filter(d => d >= 0 && d <= 6)
+    : [1,2,3,4,5]
 
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  today.setHours(0,0,0,0)
 
-  let start = (startDate && startDate.includes('-')) ? parseLocalDate(startDate) : new Date(today)
+  let start = (startDate && startDate.includes('-'))
+    ? parseLocalDate(startDate)
+    : new Date(today)
+
   if (Number.isNaN(start.getTime())) start = new Date(today)
 
-  // Walk from start → today, accumulate hours
   let totalHours = 0
-  let daysLogged = 0       // workdays counted (non-absent)
+  let daysLogged = 0
   let absenceCount = 0
-  let daysElapsed = 0      // workdays from start to today inclusive
+  let daysElapsed = 0
+
+  /* ─── WALK FROM START → TODAY ─── */
 
   if (start <= today) {
     const cur = new Date(start)
+
     while (cur <= today) {
+
       const dateStr = toDateStr(cur)
-      const dayOfWeek = cur.getDay()
-      const isWorkday = safeWorkdays.includes(dayOfWeek)
+      const dow = cur.getDay()
+      const isWorkday = safeWorkdays.includes(dow)
       const isHoliday = holidays.includes(dateStr)
       const entry = entries[dateStr]
       const isAbsent = entry?.isAbsence === true
+      const hasManualHours = entry?.hours > 0
 
-      if (isWorkday && !isHoliday) {
+      if (isWorkday) {
+
+        // ❌ Skip holiday if no manual hours
+        if (isHoliday && !hasManualHours) {
+          cur.setDate(cur.getDate() + 1)
+          continue
+        }
+
         daysElapsed++
+
         if (isAbsent) {
           absenceCount++
         } else {
-          const hours = (entry?.hours > 0) ? Number(entry.hours) : safeHoursPerDay
+          const hours = hasManualHours
+            ? Number(entry.hours)
+            : safeHoursPerDay
+
           totalHours += hours
           daysLogged++
         }
       }
+
       cur.setDate(cur.getDate() + 1)
     }
   }
@@ -105,82 +148,100 @@ export const calculateProgress = (
   const remainingHours = Math.max(0, safeTargetHours - totalHours)
   const remainingDays = Math.ceil(remainingHours / safeHoursPerDay)
 
-  // Project end date: walk forward from today
+  /* ─── PROJECT END DATE ─── */
+
   const projectedEnd = new Date(today)
+
   if (remainingHours > 0 && safeWorkdays.length > 0) {
     let added = 0
     let safety = 3000
+
     while (added < remainingDays && safety-- > 0) {
       projectedEnd.setDate(projectedEnd.getDate() + 1)
+
       const dateStr = toDateStr(projectedEnd)
-      const dayOfWeek = projectedEnd.getDay()
-      if (safeWorkdays.includes(dayOfWeek) && !holidays.includes(dateStr)) added++
+      const dow = projectedEnd.getDay()
+      const isHoliday = holidays.includes(dateStr)
+
+      if (safeWorkdays.includes(dow) && !isHoliday) {
+        added++
+      }
     }
   }
 
-  const pey = projectedEnd.getFullYear()
-  const pem = String(projectedEnd.getMonth() + 1).padStart(2, '0')
-  const ped = String(projectedEnd.getDate()).padStart(2, '0')
-  const projectedEndDate = `${pey}-${pem}-${ped}`
+  const projectedEndDate = toDateStr(projectedEnd)
 
-  // Total workdays from start → projectedEnd (the "61 days" total)
-  const totalDaysRequired = start <= projectedEnd
-    ? countWorkdays(start, projectedEnd, safeWorkdays, holidays)
-    : 0
+  const totalDaysRequired =
+    start <= projectedEnd
+      ? countWorkdays(start, projectedEnd, safeWorkdays, holidays)
+      : 0
 
   return {
     totalHours,
     extraHours: Math.round(extraHours * 10) / 10,
     daysLogged,
-    daysElapsed,        // workdays from start to today (the "25" in "25/61")
-    totalDaysRequired,  // total workdays from start to projected end (the "61")
+    daysElapsed,
+    totalDaysRequired,
     absenceCount,
-    projectedEndDate,
+    projectedEndDate
   }
 }
 
-// ─── Shared cumulative calculator (used by Calendar popover) ───────────────
-// For any target date: sum hours from startDate to that date
-// Past/today: uses actual entries + auto-project
-// Future: projects forward (auto-project only, no absences assumed)
+/* ─────────────────────────────────────────────
+   CALENDAR POPOVER CUMULATIVE HOURS
+───────────────────────────────────────────── */
+
 export const getCumulativeHoursAt = ({
   entries,
   startDate,
   targetDateStr,
   hoursPerDay,
   workdays,
-  holidays,
+  holidays
 }) => {
+
   if (!startDate || !targetDateStr) return 0
 
   const safeHoursPerDay = Math.max(0.5, Number(hoursPerDay) || 8)
-  const safeWorkdays = Array.isArray(workdays) ? workdays.filter(d => d >= 0 && d <= 6) : [1, 2, 3, 4, 5]
+  const safeWorkdays = Array.isArray(workdays)
+    ? workdays.filter(d => d >= 0 && d <= 6)
+    : [1,2,3,4,5]
 
   const start = parseLocalDate(startDate)
   const target = parseLocalDate(targetDateStr)
 
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  today.setHours(0,0,0,0)
 
   let total = 0
   const cur = new Date(start)
 
   while (cur <= target) {
+
     const dateStr = toDateStr(cur)
-    const dayOfWeek = cur.getDay()
-    const isWorkday = safeWorkdays.includes(dayOfWeek)
+    const dow = cur.getDay()
+    const isWorkday = safeWorkdays.includes(dow)
     const isHoliday = holidays.includes(dateStr)
     const entry = entries[dateStr]
     const isAbsent = entry?.isAbsence === true
+    const hasManualHours = entry?.hours > 0
     const isPast = cur <= today
 
-    if (isWorkday && !isHoliday && !isAbsent) {
+    if (isWorkday && !isAbsent) {
+
+      // ❌ skip holiday if no manual hours
+      if (isHoliday && !hasManualHours) {
+        cur.setDate(cur.getDate() + 1)
+        continue
+      }
+
       if (isPast) {
-        // Past/today: use manual log or auto-project
-        const hours = (entry?.hours > 0) ? Number(entry.hours) : safeHoursPerDay
+        const hours = hasManualHours
+          ? Number(entry.hours)
+          : safeHoursPerDay
+
         total += hours
       } else {
-        // Future: always project hoursPerDay
         total += safeHoursPerDay
       }
     }

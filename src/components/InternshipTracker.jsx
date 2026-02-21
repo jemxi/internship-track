@@ -110,7 +110,7 @@ export default function InternshipTracker({ config, onConfigChange, onResetAll }
             <span className="text-3xl"></span>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Internship Tracker</h1>
           </div>
-          <p className="text-gray-600">Track your hours, exclude off-days, and hit your goal! </p>
+          <p className="text-gray-600">Monitor your internship hours and achieve your target. Created by Emm. </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -208,8 +208,6 @@ export default function InternshipTracker({ config, onConfigChange, onResetAll }
                 isGoalExceeded={isGoalExceeded}
                 projectedEndDate={projectedEndDate}
                 entries={entries}
-                startDate={config.startDate}
-                hoursPerDay={config.hoursPerDay}
               />
             </div>
           </div>
@@ -239,6 +237,7 @@ export default function InternshipTracker({ config, onConfigChange, onResetAll }
               hoursPerDay={config.hoursPerDay}
               workdays={config.workdays || [1, 2, 3, 4, 5]}
               targetHours={config.targetHours}
+              onSave={addEntry}
             />
 
             <DailyLog

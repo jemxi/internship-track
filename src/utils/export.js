@@ -76,8 +76,11 @@ export function generateCSV(entries, meta = {}) {
   lines.push(row('Date', 'Day', 'Status', 'Hours', 'Type', 'Notes'))
 
   const sorted = Object.entries(entries)
-    .filter(([, e]) => e !== null && e !== undefined)
-    .sort(([a], [b]) => a.localeCompare(b))
+  .filter(([, e]) =>
+    e &&
+    (e.hours > 0 || e.isAbsence === true)
+  )
+  .sort(([a], [b]) => a.localeCompare(b))
 
   if (sorted.length === 0) {
     lines.push(row('No entries logged yet.', '', '', '', '', ''))
@@ -128,8 +131,11 @@ export function generatePDF(entries, meta = {}) {
 
   // Sort + split entries into worked vs absent
   const sorted = Object.entries(entries)
-    .filter(([, e]) => e)
-    .sort(([a], [b]) => a.localeCompare(b))
+  .filter(([, e]) =>
+    e &&
+    (e.hours > 0 || e.isAbsence === true)
+  )
+  .sort(([a], [b]) => a.localeCompare(b))
 
   const workedEntries  = sorted.filter(([, e]) => !e.isAbsence && e.hours > 0)
   const absentEntries  = sorted.filter(([, e]) => e.isAbsence)
@@ -513,7 +519,7 @@ export function generatePDF(entries, meta = {}) {
   <!-- Absences -->
   <div class="section-title">Absent Days (${absentEntries.length})</div>
   <div class="absence-list">
-    ${absentEntries.map(([dateStr]) => `<span class="absence-chip">🚫 ${fmtDateShort(dateStr)}</span>`).join('')}
+    ${absentEntries.map(([dateStr]) => `<span class="absence-chip"> ${fmtDateShort(dateStr)}</span>`).join('')}
   </div>
   ` : ''}
 
